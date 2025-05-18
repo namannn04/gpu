@@ -19,21 +19,32 @@ function recommendInstances(instances, input) {
     min_ram_gb,
   } = input;
 
-  return instances
+  const parsedRam = min_ram_gb ? parseInt(min_ram_gb) : null;
+  const parsedBudget = budget ? parseFloat(budget) : Infinity;
+
+  const filtered = instances
     .filter(i =>
-      i.region.includes(region.split('-')[2]) &&     
+      i.region.includes(region.split('-')[2]) &&
       i.price_per_hour > 0 &&
-      i.price_per_hour <= (budget || Infinity) &&
-      (!min_ram_gb || i.ram >= min_ram_gb) &&       // filter by RAM
+      i.price_per_hour <= parsedBudget &&
+      (!parsedRam || i.ram === parsedRam) && 
       (!operating_system || i.operating_system === operating_system) 
     )
     .map(i => ({
       ...i,
       explanation: `Recommended for ${task_type} on ${model_type} models. Handles ~${dataset_size_gb}GB data.`,
-    }))
-    .sort((a, b) => a.price_per_hour - b.price_per_hour)
-    .slice(0, 5)
+    }));
+
+  const lowest5 = [...filtered].sort((a, b) => a.price_per_hour - b.price_per_hour).slice(0, 5);
+  const highest5 = [...filtered].sort((a, b) => b.price_per_hour - a.price_per_hour).slice(0, 5);
+
+  const combined = [
+    ...new Map([...highest5, ...lowest5].map(i => [i.resource_id || i.price_per_hour, i])).values(),
+  ];
+
+  return combined;
 }
+
 
 app.post('/recommendations', async (req, res) => {
   const input = req.body;
